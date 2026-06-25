@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Optimizador Tubos R8 — Panorama Persianas</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-secondary: #f5f5f4;
+    --bg-tertiary: #efefed;
+    --text: #1c1c1a;
+    --text-secondary: #6b6b67;
+    --text-tertiary: #9b9b96;
+    --border: rgba(0,0,0,0.12);
+    --border-strong: rgba(0,0,0,0.25);
+    --green: #1D9E75;
+    --green-light: #E1F5EE;
+    --green-text: #085041;
+    --blue: #378ADD;
+    --blue-light: #E6F1FB;
+    --blue-text: #0C447C;
+    --red: #E24B4A;
+    --red-light: #FCEBEB;
+    --red-text: #791F1F;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1e1e1c; --bg-secondary: #2a2a28; --bg-tertiary: #323230;
+      --text: #f0ede8; --text-secondary: #a0a09a; --text-tertiary: #6b6b65;
+      --border: rgba(255,255,255,0.1); --border-strong: rgba(255,255,255,0.22);
+      --green-light: #04342C; --green-text: #9FE1CB;
+      --blue-light: #042C53; --blue-text: #B5D4F4;
+      --red-light: #501313; --red-text: #F7C1C1;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg-tertiary); color: var(--text); font-size: 14px; line-height: 1.5; }
+
+  .titlebar { background: var(--bg); border-bottom: 0.5px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100; }
+  .titlebar-icon { width: 28px; height: 28px; background: var(--green); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+  .titlebar-icon svg { width: 16px; height: 16px; stroke: white; fill: none; stroke-width: 2; stroke-linecap: round; }
+  .titlebar h1 { font-size: 15px; font-weight: 600; }
+  .titlebar span { font-size: 12px; color: var(--text-tertiary); }
+  .inv-badge-header { margin-left: auto; background: var(--blue-light); color: var(--blue-text); font-size: 12px; font-weight: 500; padding: 4px 12px; border-radius: 99px; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-tertiary); flex-shrink: 0; transition: background 0.3s; }
+  .sync-dot.ok { background: var(--green); }
+  .sync-dot.error { background: var(--red); }
+
+  .setup-banner { background: var(--bg); border: 1.5px solid var(--blue); border-radius: var(--radius); padding: 20px 24px; margin: 24px auto; max-width: 1060px; }
+  .setup-banner h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+  .setup-steps { counter-reset: steps; display: flex; flex-direction: column; gap: 10px; }
+  .step { display: flex; gap: 12px; align-items: flex-start; font-size: 13px; }
+  .step-num { width: 22px; height: 22px; border-radius: 50%; background: var(--blue); color: white; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+  .step code { background: var(--bg-secondary); padding: 1px 6px; border-radius: 4px; font-family: 'Consolas', monospace; font-size: 12px; }
+  .config-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .config-inputs input { padding: 9px 12px; border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text); font-size: 13px; font-family: 'Consolas', monospace; }
+  .config-inputs input:focus { outline: none; border-color: var(--blue); }
+  .btn-connect { margin-top: 10px; width: 100%; padding: 10px; background: var(--blue); color: white; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .btn-connect:hover { background: #2a75c7; }
+  .conn-error { color: var(--red); font-size: 12px; margin-top: 6px; }
+
+  .main { max-width: 1060px; margin: 0 auto; padding: 24px 20px 60px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+  .card-title { font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+
+  input[type=number], textarea {
+    width: 100%; padding: 8px 10px; border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm);
+    background: var(--bg-secondary); color: var(--text); font-size: 13px; font-family: inherit; outline: none;
+  }
+  input[type=number]:focus, textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(29,158,117,0.15); }
+  textarea { height: 110px; resize: vertical; font-family: 'Consolas', monospace; }
+
+  .row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .row input { flex: 1; }
+  button { cursor: pointer; font-family: inherit; font-size: 13px; border-radius: var(--radius-sm); border: 0.5px solid var(--border-strong); background: var(--bg); color: var(--text); padding: 8px 14px; transition: background 0.15s; }
+  button:hover { background: var(--bg-secondary); }
+  button:active { transform: scale(0.98); }
+  .btn-green { background: var(--green); color: white; border-color: transparent; font-weight: 500; }
+  .btn-green:hover { background: #178a64; }
+  .btn-run { width: 100%; padding: 12px; font-size: 15px; font-weight: 600; margin: 16px 0; background: var(--green); color: white; border: none; border-radius: var(--radius); }
+  .btn-run:hover { background: #178a64; }
+  .btn-run:disabled { background: var(--bg-secondary); color: var(--text-tertiary); cursor: not-allowed; }
+
+  .hint { font-size: 11px; color: var(--text-tertiary); margin: 6px 0 10px; }
+  .error { color: var(--red); font-size: 12px; margin-top: 4px; min-height: 16px; }
+  .pedidos-summary { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+  .cuts-wrap { display: flex; flex-wrap: wrap; gap: 5px; max-height: 120px; overflow-y: auto; }
+  .pill { background: var(--bg-secondary); border: 0.5px solid var(--border); border-radius: 99px; padding: 3px 9px; font-size: 12px; color: var(--text-secondary); }
+  .pill.inv { background: var(--blue-light); color: var(--blue-text); border-color: transparent; }
+
+  .inv-item { display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; background: var(--bg-secondary); border-radius: var(--radius-sm); margin-bottom: 5px; font-size: 13px; }
+  .badge { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 99px; }
+  .badge.green { background: var(--green-light); color: var(--green-text); }
+  .badge.blue { background: var(--blue-light); color: var(--blue-text); }
+  .btn-sm { padding: 2px 8px; font-size: 11px; border-radius: 4px; }
+
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 20px 0 16px; }
+  @media (max-width: 700px) { .metrics { grid-template-columns: 1fr 1fr; } }
+  .metric { background: var(--bg-secondary); border-radius: var(--radius-sm); padding: 12px 14px; }
+  .metric .mlabel { font-size: 11px; color: var(--text-secondary); margin-bottom: 3px; }
+  .metric .mval { font-size: 22px; font-weight: 600; }
+  .metric .msub { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
+
+  .section-title { font-size: 14px; font-weight: 600; margin: 20px 0 10px; }
+  .tube-card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; }
+  .tube-card.from-inv { border-left: 3px solid var(--blue); }
+  .tube-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .tube-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .tube-meta { font-size: 12px; color: var(--text-secondary); text-align: right; }
+  .tube-bar { height: 30px; background: var(--bg-tertiary); border-radius: 5px; overflow: hidden; display: flex; margin-bottom: 10px; }
+  .seg { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; overflow: hidden; white-space: nowrap; }
+  .seg.used { background: var(--green); color: white; }
+  .seg.retazo { background: var(--blue); color: white; }
+  .seg.waste { background: var(--bg-tertiary); border-left: 1px dashed var(--border-strong); color: var(--text-tertiary); }
+
+  .new-inv-item { display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 4px; }
+  .new-inv-item.keep { background: var(--green-light); color: var(--green-text); }
+  .empty { text-align: center; padding: 24px; color: var(--text-tertiary); font-size: 13px; }
+  .divider { height: 0.5px; background: var(--border); margin: 20px 0; }
+  .save-banner { background: var(--green-light); color: var(--green-text); border-radius: var(--radius); padding: 14px 18px; font-size: 13px; font-weight: 500; margin-top: 16px; text-align: center; }
+  .loading { display: flex; align-items: center; gap: 8px; color: var(--text-tertiary); font-size: 13px; padding: 16px 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin 0.7s linear infinite; }
+</style>
+</head>
+<body>
+
+<div class="titlebar">
+  <div class="titlebar-icon">
+    <svg viewBox="0 0 24 24"><path d="M6 3L3 9l9 3 9-3-3-6H6z"/><path d="M3 9l9 13 9-13"/></svg>
+  </div>
+  <h1>Optimizador Tubos R8</h1>
+  <span style="margin-left:2px;">Panorama Persianas</span>
+  <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+    <div class="sync-dot" id="sync-dot" title="Estado conexión"></div>
+    <div class="inv-badge-header" id="inv-counter">Cargando...</div>
+  </div>
+</div>
+
+<!-- SETUP BANNER — se oculta una vez configurado -->
+<div class="setup-banner" id="setup-banner">
+  <h2>⚙️ Configuración inicial — conectá tu base de datos Supabase</h2>
+  <div class="setup-steps">
+    <div class="step"><div class="step-num">1</div><div>Creá una cuenta gratis en <a href="https://supabase.com" target="_blank" style="color:var(--blue)">supabase.com</a> → nuevo proyecto</div></div>
+    <div class="step"><div class="step-num">2</div><div>En el SQL Editor de Supabase ejecutá:<br><code>create table inventario (id serial primary key, retazos jsonb not null default '[]'::jsonb);</code><br><code>insert into inventario (retazos) values ('[]'::jsonb);</code></div></div>
+    <div class="step"><div class="step-num">3</div><div>En <b>Project Settings → API</b> copiá la <b>Project URL</b> y la clave <b>anon public</b></div></div>
+    <div class="step"><div class="step-num">4</div><div>Pegálos acá abajo y hacé clic en Conectar</div></div>
+  </div>
+  <div class="config-inputs">
+    <input type="text" id="cfg-url" placeholder="https://xxxxxxxxxxxx.supabase.co" />
+    <input type="text" id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." />
+  </div>
+  <button class="btn-connect" onclick="conectar()">Conectar a Supabase</button>
+  <div id="conn-error" class="conn-error"></div>
+</div>
+
+<div class="main" id="app-main" style="display:none;">
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Pedidos del día — anchos de cortina (m)</div>
+      <div class="row">
+        <input type="number" id="single-input" placeholder="ej: 1.20" step="0.001" min="0.03" max="1.80" />
+        <button class="btn-green" onclick="addSingle()">Agregar</button>
+      </div>
+      <div id="single-error" class="error"></div>
+      <div class="hint">O pegá varios anchos separados por coma, espacio o salto de línea:</div>
+      <textarea id="bulk-input" placeholder="1.20, 0.85, 1.55, 1.10&#10;0.70, 1.40, 0.95"></textarea>
+      <div class="row" style="margin-top:8px;">
+        <button onclick="addBulk()" style="flex:1;">Cargar lista</button>
+        <button onclick="clearPedidos()">Limpiar</button>
+      </div>
+      <div style="margin-top:12px;">
+        <div id="pedidos-summary" class="pedidos-summary"></div>
+        <div id="pedidos-list" class="cuts-wrap"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Inventario de retazos disponibles</div>
+      <div id="inv-list"><div class="loading"><div class="spinner"></div>Cargando inventario...</div></div>
+      <div class="hint" style="margin-top:8px;">Retazos ≥ 0.5 m guardados en la nube. Disponibles desde cualquier dispositivo.</div>
+      <button onclick="recargarInventario()" style="width:100%;margin-top:8px;font-size:12px;">↻ Recargar inventario</button>
+    </div>
+  </div>
+
+  <button class="btn-run" id="btn-optimizar" onclick="optimizar()">✂ Optimizar cortes</button>
+  <div id="results"></div>
+</div>
+
+<script>
+const LONGITUD_TUBO = 5.98
+const MIN_RETAZO = 0.5
+const MAX_CORTE = 1.77
+const STORAGE_KEY = 'supabase_config'
+
+let supabaseClient = null
+let inventario = []
+let pedidos = []
+
+function r3(n) { return Math.round(n * 1000) / 1000 }
+function r2(n) { return Math.round(n * 100) / 100 }
+
+function setSyncStatus(status) {
+  const dot = document.getElementById('sync-dot')
+  dot.className = 'sync-dot' + (status === 'ok' ? ' ok' : status === 'error' ? ' error' : '')
+  dot.title = status === 'ok' ? 'Conectado a Supabase' : status === 'error' ? 'Error de conexión' : 'Conectando...'
+}
+
+async function conectar() {
+  const url = document.getElementById('cfg-url').value.trim()
+  const key = document.getElementById('cfg-key').value.trim()
+  const errEl = document.getElementById('conn-error')
+  if (!url || !key) { errEl.textContent = 'Completá los dos campos.'; return }
+  errEl.textContent = ''
+  try {
+    const { createClient } = supabase
+    supabaseClient = createClient(url, key)
+    const { data, error } = await supabaseClient.from('inventario').select('retazos').limit(1)
+    if (error) throw error
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ url, key }))
+    inventario = data[0]?.retazos || []
+    document.getElementById('setup-banner').style.display = 'none'
+    document.getElementById('app-main').style.display = 'block'
+    setSyncStatus('ok')
+    renderInventario()
+    renderPedidos()
+  } catch(e) {
+    errEl.textContent = 'Error al conectar: ' + (e.message || 'verificá la URL y la clave.')
+    setSyncStatus('error')
+  }
+}
+
+async function recargarInventario() {
+  if (!supabaseClient) return
+  setSyncStatus('')
+  try {
+    const { data, error } = await supabaseClient.from('inventario').select('retazos').limit(1)
+    if (error) throw error
+    inventario = data[0]?.retazos || []
+    setSyncStatus('ok')
+    renderInventario()
+  } catch(e) {
+    setSyncStatus('error')
+  }
+}
+
+async function persistInventario(inv) {
+  if (!supabaseClient) return
+  setSyncStatus('')
+  try {
+    const { data } = await supabaseClient.from('inventario').select('id').limit(1)
+    const id = data[0]?.id
+    if (id) {
+      await supabaseClient.from('inventario').update({ retazos: inv }).eq('id', id)
+    } else {
+      await supabaseClient.from('inventario').insert({ retazos: inv })
+    }
+    setSyncStatus('ok')
+  } catch(e) {
+    setSyncStatus('error')
+  }
+}
+
+async function init() {
+  const saved = localStorage.getItem(STORAGE_KEY)
+  if (saved) {
+    try {
+      const { url, key } = JSON.parse(saved)
+      document.getElementById('cfg-url').value = url
+      document.getElementById('cfg-key').value = key
+      await conectar()
+    } catch(e) {}
+  }
+}
+
+function renderPedidos() {
+  const summary = document.getElementById('pedidos-summary')
+  const list = document.getElementById('pedidos-list')
+  if (!pedidos.length) {
+    summary.textContent = ''
+    list.innerHTML = '<span style="font-size:12px;color:var(--text-tertiary)">Sin pedidos cargados</span>'
+    return
+  }
+  summary.textContent = pedidos.length + ' cortes · suma: ' + r2(pedidos.reduce((a,b)=>a+b,0)) + ' m'
+  list.innerHTML = [...pedidos].sort((a,b)=>b-a).map(c=>`<span class="pill">${c.toFixed(3)}</span>`).join('')
+}
+
+function renderInventario() {
+  const el = document.getElementById('inv-list')
+  const counter = document.getElementById('inv-counter')
+  counter.textContent = 'Inventario: ' + inventario.length + (inventario.length===1?' retazo':' retazos')
+  if (!inventario.length) { el.innerHTML = '<div class="empty">Sin retazos guardados</div>'; return }
+  el.innerHTML = inventario.map((r,i)=>`
+    <div class="inv-item">
+      <span style="font-weight:500">${r.toFixed(3)} m</span>
+      <div style="display:flex;gap:5px;align-items:center;">
+        <span class="badge green">útil</span>
+        <button class="btn-sm" onclick="removeInv(${i})">×</button>
+      </div>
+    </div>`).join('')
+}
+
+async function removeInv(i) {
+  inventario.splice(i,1)
+  renderInventario()
+  await persistInventario(inventario)
+}
+
+function addSingle() {
+  const input = document.getElementById('single-input')
+  const errEl = document.getElementById('single-error')
+  const v = parseFloat(input.value)
+  if (isNaN(v)||v<=0) { errEl.textContent='Ingresá un ancho válido.'; return }
+  const corte = r3(v-0.03)
+  if (corte>MAX_CORTE) { errEl.textContent='Ancho '+v+' m → tubo '+corte.toFixed(3)+' m supera el máx R8 (1.77 m).'; return }
+  if (corte<=0) { errEl.textContent='Ancho muy pequeño.'; return }
+  errEl.textContent=''
+  pedidos.push(corte)
+  input.value=''
+  input.focus()
+  renderPedidos()
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.getElementById('single-input').addEventListener('keydown', e=>{ if(e.key==='Enter') addSingle() })
+})
+
+function addBulk() {
+  const raw = document.getElementById('bulk-input').value
+  const vals = raw.split(/[\s,;]+/).map(s=>parseFloat(s)).filter(n=>!isNaN(n)&&n>0)
+  let skipped=0
+  vals.forEach(v=>{
+    const corte=r3(v-0.03)
+    if(corte>MAX_CORTE||corte<=0){skipped++;return}
+    pedidos.push(corte)
+  })
+  document.getElementById('bulk-input').value=''
+  document.getElementById('single-error').textContent = skipped>0 ? skipped+' ancho(s) fuera de rango R8 omitidos.' : ''
+  renderPedidos()
+}
+
+function clearPedidos() { pedidos=[]; renderPedidos(); document.getElementById('single-error').textContent='' }
+
+function getCombinations(arr, r) {
+  const result=[]
+  function combo(start,current){
+    if(current.length===r){result.push([...current]);return}
+    for(let i=start;i<arr.length;i++){current.push(i);combo(i+1,current);current.pop()}
+  }
+  combo(0,[]);return result
+}
+
+function greedyPack(cuts, tuboLen) {
+  let remaining=[...cuts]; const tubos=[]
+  while(remaining.length){
+    let bestCombo=null,bestSum=0
+    for(let r=1;r<=remaining.length;r++){
+      const combos=getCombinations(remaining,r)
+      for(const idxCombo of combos){
+        const suma=r3(idxCombo.reduce((a,i)=>a+remaining[i],0))
+        if(suma<=tuboLen&&suma>bestSum){bestSum=suma;bestCombo=idxCombo}
+      }
+      if(bestSum>tuboLen-0.001)break
+    }
+    if(!bestCombo){tubos.push([remaining[0]]);remaining.splice(0,1);continue}
+    tubos.push(bestCombo.map(i=>remaining[i]))
+    bestCombo.sort((a,b)=>b-a).forEach(i=>remaining.splice(i,1))
+  }
+  return tubos
+}
+
+function optimizar() {
+  if(!pedidos.length){document.getElementById('results').innerHTML='<div class="empty">Cargá los pedidos primero.</div>';return}
+  const usedFromInvIdx=[], tubosUsados=[]
+  const invCopy=[...inventario].sort((a,b)=>b-a)
+  let remaining=[...pedidos].sort((a,b)=>b-a)
+
+  for(let i=0;i<invCopy.length&&remaining.length;i++){
+    const ret=invCopy[i]; let espacio=ret,fitted=[],tempRest=[...remaining],changed=true
+    while(changed&&espacio>0.001){
+      changed=false; let best=null,bestSum=0
+      for(let r=1;r<=tempRest.length;r++){
+        const combos=getCombinations(tempRest,r)
+        for(const idxCombo of combos){
+          const suma=r3(idxCombo.reduce((a,idx)=>a+tempRest[idx],0))
+          if(suma<=espacio&&suma>bestSum){bestSum=suma;best=idxCombo}
+        }
+        if(bestSum>espacio-0.001)break
+      }
+      if(best){fitted.push(...best.map(idx=>tempRest[idx]));best.sort((a,b)=>b-a).forEach(idx=>tempRest.splice(idx,1));espacio=r3(espacio-bestSum);changed=true}
+    }
+    if(fitted.length>0){
+      tubosUsados.push({cuts:fitted,fromInv:true,retazoSize:ret,usado:r3(ret-espacio),desperdicio:r3(espacio)})
+      usedFromInvIdx.push(i); remaining=tempRest
+    }
+  }
+
+  greedyPack(remaining,LONGITUD_TUBO).forEach(cuts=>{
+    const usado=r3(cuts.reduce((a,b)=>a+b,0))
+    tubosUsados.push({cuts,fromInv:false,retazoSize:LONGITUD_TUBO,usado,desperdicio:r3(LONGITUD_TUBO-usado)})
+  })
+
+  const nuevosRetazos=tubosUsados.filter(t=>t.desperdicio>=MIN_RETAZO).map(t=>r3(t.desperdicio))
+  const invFinal=[...invCopy.filter((_,i)=>!usedFromInvIdx.includes(i)),...nuevosRetazos].filter(r=>r>=MIN_RETAZO).sort((a,b)=>b-a)
+
+  const totalNuevos=tubosUsados.filter(t=>!t.fromInv).length
+  const totalMaterial=r3(totalNuevos*LONGITUD_TUBO+usedFromInvIdx.reduce((a,i)=>a+invCopy[i],0))
+  const totalUsado=r3(pedidos.reduce((a,b)=>a+b,0))
+  const aprovechamiento=totalMaterial>0?(totalUsado/totalMaterial*100).toFixed(1):'0.0'
+  const retazosGen=tubosUsados.filter(t=>!t.fromInv&&t.desperdicio>=MIN_RETAZO).length
+
+  let html=`<div class="metrics">
+    <div class="metric"><div class="mlabel">Tubos nuevos</div><div class="mval">${totalNuevos}</div><div class="msub">de 5.98 m</div></div>
+    <div class="metric"><div class="mlabel">Retazos usados</div><div class="mval">${usedFromInvIdx.length}</div><div class="msub">del inventario</div></div>
+    <div class="metric"><div class="mlabel">Aprovechamiento</div><div class="mval">${aprovechamiento}%</div><div class="msub">sobre material total</div></div>
+    <div class="metric"><div class="mlabel">Retazos generados</div><div class="mval">${retazosGen}</div><div class="msub">≥ 0.5 m → inventario</div></div>
+  </div><div class="divider"></div><div class="section-title">Distribución por tubo</div>`
+
+  tubosUsados.forEach((t,idx)=>{
+    const pct=v=>((v/t.retazoSize)*100).toFixed(1)
+    const retazoPct=t.desperdicio>=MIN_RETAZO?parseFloat(pct(t.desperdicio)):0
+    const wastePct=t.desperdicio<MIN_RETAZO?parseFloat(pct(t.desperdicio)):0
+    html+=`<div class="tube-card${t.fromInv?' from-inv':''}">
+      <div class="tube-head">
+        <div class="tube-name">
+          ${t.fromInv?'<span class="badge blue">Retazo inventario</span>':'<span style="color:var(--text-secondary)">Tubo '+(idx+1)+'</span>'}
+          <span style="font-size:11px;font-weight:400;color:var(--text-tertiary)">${t.retazoSize.toFixed(3)} m</span>
+        </div>
+        <div class="tube-meta">${t.usado.toFixed(3)} m usados<br>
+          <span style="color:${t.desperdicio>=MIN_RETAZO?'var(--blue)':'var(--text-tertiary)'}">${t.desperdicio.toFixed(3)} m ${t.desperdicio>=MIN_RETAZO?'→ retazo útil':'descarte'}</span>
+        </div>
+      </div>
+      <div class="tube-bar">
+        <div class="seg used" style="width:${pct(t.usado)}%">${parseFloat(pct(t.usado))>8?t.usado.toFixed(2)+' m':''}</div>
+        ${retazoPct>0?`<div class="seg retazo" style="width:${retazoPct}%">${retazoPct>6?t.desperdicio.toFixed(2)+' m':''}</div>`:''}
+        ${wastePct>0?`<div class="seg waste" style="width:${wastePct}%">${wastePct>4?t.desperdicio.toFixed(2)+' m':''}</div>`:''}
+      </div>
+      <div class="cuts-wrap">${t.cuts.map(c=>`<span class="pill${t.fromInv?' inv':''}">${c.toFixed(3)}</span>`).join('')}</div>
+    </div>`
+  })
+
+  html+=`<div class="divider"></div><div class="section-title">Inventario para el próximo lote</div>
+  <div class="card">
+    <div style="margin-bottom:12px;">${invFinal.length?invFinal.map(r=>`<div class="new-inv-item keep"><span>${r.toFixed(3)} m</span><span class="badge green">pasa al inventario</span></div>`).join(''):'<div class="empty">Sin retazos útiles para guardar.</div>'}</div>
+    <button class="btn-green" style="width:100%;padding:10px;font-size:14px;" onclick='aplicarYGuardar(${JSON.stringify(invFinal)})'>✓ Guardar inventario y preparar nuevo lote</button>
+  </div>`
+
+  document.getElementById('results').innerHTML=html
+  document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'})
+}
+
+async function aplicarYGuardar(inv) {
+  inventario=inv
+  await persistInventario(inventario)
+  pedidos=[]
+  renderPedidos()
+  renderInventario()
+  document.getElementById('results').innerHTML='<div class="save-banner">✓ Inventario guardado en la nube. Cargá los pedidos del nuevo lote.</div>'
+  window.scrollTo({top:0,behavior:'smooth'})
+}
+
+init()
+</script>
+</body>
+</html>
